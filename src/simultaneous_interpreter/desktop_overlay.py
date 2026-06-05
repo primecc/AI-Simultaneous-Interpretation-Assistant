@@ -11,8 +11,9 @@ from simultaneous_interpreter.services.system_audio_translator import (
     SystemAudioTranslator,
 )
 
-LAUNCHER_SIZE = 72
+LAUNCHER_SIZE = 96
 LAUNCHER_CENTER = LAUNCHER_SIZE // 2
+LAUNCHER_ICON_FILE = "app-icon-launcher-96.png"
 TRANSPARENT_COLOR = "#ff00ff"
 CAPTION_BACKGROUND = "#333a45"
 CAPTION_BORDER = "#5f6b7a"
@@ -63,17 +64,7 @@ class DesktopOverlayApp:
             bg=TRANSPARENT_COLOR,
         )
         self.canvas.pack(fill="both", expand=True)
-        self.bubble = self.canvas.create_oval(
-            4,
-            4,
-            LAUNCHER_SIZE - 4,
-            LAUNCHER_SIZE - 4,
-            fill="",
-            outline="#79d7ff",
-            width=2,
-            tags=("launcher",),
-        )
-        self._launcher_image = _load_photo_image(tk, "app-icon-72.png")
+        self._launcher_image = _load_photo_image(tk, LAUNCHER_ICON_FILE)
         if self._launcher_image is not None:
             self.canvas.create_image(
                 LAUNCHER_CENTER,
@@ -82,6 +73,16 @@ class DesktopOverlayApp:
                 tags=("launcher",),
             )
         else:
+            self.canvas.create_rectangle(
+                6,
+                6,
+                LAUNCHER_SIZE - 6,
+                LAUNCHER_SIZE - 6,
+                fill="#103945",
+                outline="#74e4ff",
+                width=2,
+                tags=("launcher",),
+            )
             self.canvas.create_text(
                 LAUNCHER_CENTER,
                 LAUNCHER_CENTER - 1,
@@ -91,10 +92,10 @@ class DesktopOverlayApp:
                 tags=("launcher",),
             )
         self.status_dot = self.canvas.create_oval(
-            LAUNCHER_SIZE - 20,
-            10,
-            LAUNCHER_SIZE - 9,
-            21,
+            LAUNCHER_SIZE - 25,
+            13,
+            LAUNCHER_SIZE - 11,
+            27,
             fill="#9ca3af",
             outline="#ffffff",
             width=2,
@@ -166,7 +167,6 @@ class DesktopOverlayApp:
 
         if not readiness.ready:
             self._active = False
-            self.canvas.itemconfigure(self.bubble, fill="", outline="#fb923c")
             self.canvas.itemconfigure(self.status_dot, fill="#f97316")
             self._set_caption_text(
                 status=readiness.title,
@@ -176,7 +176,6 @@ class DesktopOverlayApp:
             return
 
         self._active = True
-        self.canvas.itemconfigure(self.bubble, fill="", outline="#49f2a8")
         self.canvas.itemconfigure(self.status_dot, fill="#18c47f")
         self._set_caption_text(status=readiness.title)
         self.caption.deiconify()
@@ -194,7 +193,6 @@ class DesktopOverlayApp:
         if self._translator is not None:
             self._translator.stop()
             self._translator = None
-        self.canvas.itemconfigure(self.bubble, fill="", outline="#79d7ff")
         self.canvas.itemconfigure(self.status_dot, fill="#9ca3af")
         self.caption.withdraw()
 
@@ -430,13 +428,13 @@ class DesktopOverlayApp:
             if self._launcher_image is not None:
                 canvas.create_image(LAUNCHER_CENTER, LAUNCHER_CENTER, image=self._launcher_image)
             else:
-                canvas.create_oval(
-                    7,
-                    7,
-                    LAUNCHER_SIZE - 7,
-                    LAUNCHER_SIZE - 7,
-                    fill="",
-                    outline="#8bd4ff",
+                canvas.create_rectangle(
+                    8,
+                    8,
+                    LAUNCHER_SIZE - 8,
+                    LAUNCHER_SIZE - 8,
+                    fill="#103945",
+                    outline="#74e4ff",
                     width=2,
                 )
                 canvas.create_text(

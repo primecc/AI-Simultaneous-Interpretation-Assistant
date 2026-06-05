@@ -149,22 +149,25 @@
 - `src/simultaneous_interpreter/assets/app-icon.png`
 - `src/simultaneous_interpreter/assets/app-icon.ico`
 - `src/simultaneous_interpreter/assets/app-icon-64.png`
+- `src/simultaneous_interpreter/assets/app-icon-launcher-96.png`
 - `assets/app-icon.png`
 - `assets/app-icon.ico`
 - `assets/app-icon-64.png`
+- `assets/ai-interpreter-creative-icon-2048.png`
 - `tests/test_desktop_overlay.py`
 
 功能描述：
 
 - 启动 EXE 后显示可拖动悬浮图标。
 - 点击图标开启/关闭后台同传。
-- 悬浮按钮使用自定义图标，并带拖影效果。
+- 悬浮按钮使用 2048 原图生成的高清图标，并带拖影效果。
 - 字幕条可拖动并记住位置。
 
 实现思路：
 
 - 使用 Tkinter 创建置顶无边框桌面窗体。
 - 使用 Windows 鼠标状态轮询增强拖动稳定性。
+- 使用 96px 专用悬浮窗图标直显，避免小图拉伸和边缘彩边。
 - 使用独立字幕窗体显示实时中文字幕。
 - 将位置保存到本地 JSON 文件，避免下次启动回到默认位置。
 

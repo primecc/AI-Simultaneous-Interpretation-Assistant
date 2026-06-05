@@ -52,7 +52,15 @@ function Copy-DirectoryContents {
         $relative = $_.FullName.Substring($Source.Length).TrimStart("\")
         $target = Join-Path $Destination $relative
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
-        Copy-Item -LiteralPath $_.FullName -Destination $target -Force
+        try {
+            Copy-Item -LiteralPath $_.FullName -Destination $target -Force -ErrorAction Stop
+        } catch {
+            if ((Test-Path -LiteralPath $target) -and ((Get-Item -LiteralPath $target).Length -eq $_.Length)) {
+                Write-Warning "Skipped locked unchanged file: $relative"
+            } else {
+                throw
+            }
+        }
     }
 }
 
