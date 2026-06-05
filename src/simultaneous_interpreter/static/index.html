@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI 同声传译助手</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-label="AI 同声传译工作台">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">本地字幕工作台</p>
+            <h1>AI 同声传译助手</h1>
+          </div>
+          <div class="status-row">
+            <span id="connectionDot" class="dot" aria-hidden="true"></span>
+            <span id="connectionText">未连接</span>
+          </div>
+        </header>
+
+        <section class="media-band" aria-label="媒体输入">
+          <div class="upload-row">
+            <label class="file-button" for="mediaInput">选择视频/音频</label>
+            <input id="mediaInput" class="file-input" type="file" accept="video/*,audio/*" />
+            <span id="mediaName" class="media-name">未选择媒体</span>
+          </div>
+          <div class="player-shell">
+            <video id="mediaPlayer" class="media-player" controls preload="metadata"></video>
+            <div id="liveCaption" class="live-caption" hidden>
+              <p class="live-source"></p>
+              <p class="live-translation"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-band" aria-label="控制面板">
+          <button id="startButton" class="primary-button" type="button">播放并生成字幕</button>
+          <button id="clearButton" class="ghost-button" type="button">清空字幕</button>
+          <a class="ghost-button" href="/api/export.srt">导出 SRT</a>
+          <a class="ghost-button" href="/api/export.txt">导出 TXT</a>
+        </section>
+
+        <section class="caption-stage" aria-live="polite" aria-label="实时字幕">
+          <div id="emptyState" class="empty-state">
+            导入视频或音频后，系统会识别音频并生成中文字幕。
+          </div>
+          <ol id="subtitleList" class="subtitle-list"></ol>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
