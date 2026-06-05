@@ -203,7 +203,9 @@
 
 - `packaging/AI-Simultaneous-Interpreter.spec`
 - `packaging/version_info.txt`
+- `packaging/build-windows-release.ps1`
 - `packaging/sign-release.ps1`
+- `packaging/verify-release-signature.ps1`
 - `packaging/Windows-EXE-使用说明.md`
 - `docs/跨机器发布方案.md`
 - `models/faster-whisper-tiny.en/`
@@ -214,17 +216,18 @@
 
 - 生成 Windows 桌面 EXE。
 - 将模型、VAD 资源、图标、静态页面、文档和 VC++ 运行库纳入打包。
-- 提供代码签名脚本和跨机器发布说明。
+- 提供强制签名发布脚本、代码签名脚本、验签脚本和跨机器发布说明。
 
 实现思路：
 
 - 使用 PyInstaller one-dir 模式打包。
 - 在 spec 中收集 `faster_whisper` assets、内置模型、应用静态资源和运行时 DLL。
-- 对 Smart App Control 场景给出可信代码签名方案。
+- 对 Smart App Control 场景给出可信代码签名方案，并把未签名包拦截为发布门禁。
 
 验证方式：
 
 - `python -m PyInstaller packaging\AI-Simultaneous-Interpreter.spec --noconfirm --clean`
+- `.\packaging\verify-release-signature.ps1`
 - 检查 `_internal\models\faster-whisper-tiny.en\model.bin`
 - 检查 `_internal\faster_whisper\assets\silero_vad_v6.onnx`
 - 检查 `_internal\vcruntime140.dll` 和 `_internal\msvcp140.dll`
@@ -397,17 +400,18 @@ build(windows): package desktop app with bundled runtime assets
 
 功能描述：
 
-- 新增 PyInstaller 打包配置、版本信息、签名脚本和跨机器发布说明。
+- 新增 PyInstaller 打包配置、版本信息、强制签名发布脚本、签名脚本、验签脚本和跨机器发布说明。
 - 内置模型、VAD 资源、图标和 VC++ 运行库。
 
 实现思路：
 
 - 使用 PyInstaller one-dir 模式打包。
-- 明确未签名 EXE 在 Smart App Control 下的风险和代码签名方案。
+- 明确未签名 EXE 在 Smart App Control 下的风险和代码签名方案；正式发布脚本默认要求签名并验签。
 
 测试方式：
 
 - `python -m PyInstaller packaging\AI-Simultaneous-Interpreter.spec --noconfirm --clean`
+- `.\packaging\verify-release-signature.ps1`
 - 检查生成 EXE 和 `_internal` 关键资源。
 
 ### PR 8：补充 README、依赖说明和最终测试

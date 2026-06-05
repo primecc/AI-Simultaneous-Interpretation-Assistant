@@ -17,6 +17,7 @@
 5. 悬浮球替换为高清圆形 3D 助手图标，提供多尺寸 PNG 和 ICO。
 6. 退出流程先停止翻译并收起所有浮窗，修复退出残留白框。
 7. README 从头到尾更新，补充最新功能、配置、发布方式和依赖说明。
+8. 补充 Windows 可信签名发布门禁，避免未签名 EXE 被 Smart App Control 拦截后仍被当作正式包。
 
 ## 实现思路
 
@@ -28,6 +29,7 @@
 - 大体积模型、EXE、DLL 和发布 zip 通过 Git LFS 上传，避免触发 GitHub 普通 Git 单文件大小限制。
 - 桌面字幕改用透明 Tk 窗口和 Canvas 描边文字，悬浮球使用透明 PNG 资源。
 - 实时翻译增加 `RealtimeCorrectionMemory`，用相似度判断修正同一字幕片段。
+- Windows 正式发布改为 `build-windows-release.ps1` 流程，默认要求 Authenticode 签名和验签；`-SkipSignature` 仅允许本机开发自测。
 
 ## 测试方式
 
@@ -35,6 +37,7 @@
 - `python -m ruff check .`
 - 重新打包 Windows EXE 并刷新根目录、`dist/`、`_internal/` 和 `release/` 产物。
 - 检查 Git LFS 对象上传完成，并确认 PR 分支包含 `release/AI-Simultaneous-Interpreter-windows.zip`。
+- 运行 `verify-release-signature.ps1`，确认当前未签名 EXE 会被发布门禁拦截。
 - 手动运行 EXE，点击悬浮图标开启/关闭字幕。
 - 手动打开网页工作台上传视频/音频并验证字幕生成和导出。
 

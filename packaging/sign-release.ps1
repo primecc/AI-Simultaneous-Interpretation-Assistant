@@ -1,9 +1,11 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$CertificatePath,
+    [string]$CertificatePath = $env:WINDOWS_SIGN_CERT_PATH,
 
-    [Parameter(Mandatory = $true)]
-    [string]$CertificatePassword,
+    [string]$CertificatePassword = $env:WINDOWS_SIGN_CERT_PASSWORD,
+
+    [string]$CertificateThumbprint = $env:WINDOWS_SIGN_CERT_THUMBPRINT,
+
+    [string]$CertificateSubject = $env:WINDOWS_SIGN_CERT_SUBJECT,
 
     [string]$TimestampUrl = "http://timestamp.digicert.com",
 
@@ -11,38 +13,79 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$projectRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")
-$releaseDir = Join-Path $projectRoot "dist\AI-Simultaneous-Interpreter"
-$mainExe = Join-Path $releaseDir "AI-Simultaneous-Interpreter.exe"
+
+function Add-SignTarget {
+    param(
+        [System.Collections.Generic.List[string]]$Targets,
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $resolved = (Resolve-Path -LiteralPath $Path).Path
+    if (-not $Targets.Contains($resolved)) {
+        $Targets.Add($resolved) | Out-Null
+    }
+}
+
+$projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$distDir = Join-Path $projectRoot "dist\AI-Simultaneous-Interpreter"
+$rootInternalDir = Join-Path $projectRoot "_internal"
+$distExe = Join-Path $distDir "AI-Simultaneous-Interpreter.exe"
 
 $signtool = Get-Command signtool.exe -ErrorAction SilentlyContinue
 if ($null -eq $signtool) {
-    throw "未找到 signtool.exe。请安装 Windows SDK，并把 signtool.exe 加入 PATH。"
+    throw "signtool.exe was not found. Install Windows SDK and add signtool.exe to PATH."
 }
 
-if (-not (Test-Path -LiteralPath $CertificatePath)) {
-    throw "证书文件不存在：$CertificatePath"
-}
+$targets = [System.Collections.Generic.List[string]]::new()
+Add-SignTarget -Targets $targets -Path $distExe
+Get-ChildItem -LiteralPath $projectRoot -File -Filter "*.exe" |
+    ForEach-Object { Add-SignTarget -Targets $targets -Path $_.FullName }
 
-if (-not (Test-Path -LiteralPath $mainExe)) {
-    throw "未找到待签名 EXE：$mainExe。请先运行 PyInstaller 打包。"
-}
-
-$targets = @($mainExe)
 if ($SignAllBinaries) {
-    $targets = Get-ChildItem -LiteralPath $releaseDir -Recurse -Include *.exe,*.dll,*.pyd |
-        Select-Object -ExpandProperty FullName
+    foreach ($directory in @($distDir, $rootInternalDir)) {
+        if (Test-Path -LiteralPath $directory) {
+            Get-ChildItem -LiteralPath $directory -Recurse -File -Include *.exe, *.dll, *.pyd |
+                ForEach-Object { Add-SignTarget -Targets $targets -Path $_.FullName }
+        }
+    }
+}
+
+if ($targets.Count -eq 0) {
+    throw "No signing targets were found. Build the Windows release first."
+}
+
+$signArgs = @("sign", "/fd", "SHA256", "/tr", $TimestampUrl, "/td", "SHA256", "/v")
+if ($CertificatePath) {
+    if (-not (Test-Path -LiteralPath $CertificatePath)) {
+        throw "Certificate file does not exist: $CertificatePath"
+    }
+
+    $signArgs += @("/f", (Resolve-Path -LiteralPath $CertificatePath).Path)
+    if ($CertificatePassword) {
+        $signArgs += @("/p", $CertificatePassword)
+    }
+} elseif ($CertificateThumbprint) {
+    $signArgs += @("/sha1", $CertificateThumbprint)
+} elseif ($CertificateSubject) {
+    $signArgs += @("/a", "/n", $CertificateSubject)
+} else {
+    throw "No trusted code signing certificate was provided. Pass -CertificatePath or -CertificateThumbprint, or set WINDOWS_SIGN_CERT_PATH/WINDOWS_SIGN_CERT_THUMBPRINT."
 }
 
 foreach ($target in $targets) {
-    & $signtool.Source sign `
-        /f $CertificatePath `
-        /p $CertificatePassword `
-        /fd SHA256 `
-        /tr $TimestampUrl `
-        /td SHA256 `
-        /v `
-        $target
+    & $signtool.Source @signArgs $target
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signing failed: $target"
+    }
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $target
+    if ($signature.Status -ne "Valid") {
+        throw "Signature verification failed after signing: $target, status: $($signature.Status)"
+    }
 }
 
-Write-Host "签名完成：$($targets.Count) 个文件"
+Write-Host "Signing completed and verified: $($targets.Count) files"

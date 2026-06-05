@@ -34,7 +34,7 @@ AI-Simultaneous-Interpreter.exe
 
 首次运行会自动准备本地识别模型。无需填写 OpenAI API key，也不需要手动配置浏览器扩展。翻译使用免 key 的在线翻译通道，因此需要保持网络可用。
 
-当前分支通过 Git LFS 提交了模型权重、Windows EXE、`_internal/` 运行目录、`dist/` 打包目录和 `release/` 发布压缩包，便于评审直接检查完整发布产物。开发运行时仍可使用 `tiny.en` 自动下载；发布 EXE 时，如果本地存在完整的 `models/faster-whisper-tiny.en/model.bin`，打包脚本会自动将模型内置到发布包。
+当前分支通过 Git LFS 提交了模型权重、Windows EXE、`_internal/` 运行目录、`dist/` 打包目录和 `release/` 发布压缩包，便于评审直接检查完整发布产物。开发运行时仍可使用 `tiny.en` 自动下载；发布 EXE 时，如果本地存在完整的 `models/faster-whisper-tiny.en/model.bin`，打包脚本会自动将模型内置到发布包。Smart App Control 拦截未知发布者是固定发布风险，正式发布必须使用可信代码签名证书签名。
 
 ## 最近改进
 
@@ -88,6 +88,27 @@ python -m pip install pyinstaller
 python -m PyInstaller packaging\AI-Simultaneous-Interpreter.spec --noconfirm --clean
 ```
 
+上面的命令只适合本机开发自测。正式发布必须使用可信代码签名证书：
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\packaging\build-windows-release.ps1 `
+  -CertificatePath "C:\path\to\certificate.pfx" `
+  -CertificatePassword "证书密码" `
+  -SignAllBinaries
+```
+
+如果证书在 Windows 证书库中，也可以使用：
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\packaging\build-windows-release.ps1 `
+  -CertificateThumbprint "证书指纹" `
+  -SignAllBinaries
+```
+
+发布脚本会重新打包、同步根目录 EXE、执行 Authenticode 签名、验签，并生成 release zip。没有可信证书时脚本会失败，这是为了防止再次产出会被 Smart App Control 拦截的包。仅本机调试时才允许显式加 `-SkipSignature`。
+
 构建结果：
 
 ```text
@@ -102,7 +123,7 @@ release\AI-Simultaneous-Interpreter-windows.zip
 
 也可以使用项目根目录的 `AI同声传译助手.exe`，但必须保留旁边的 `_internal/` 目录。
 
-跨机器发布请看 [跨机器发布方案](docs/跨机器发布方案.md)。未签名 EXE 在开启 Smart App Control 的 Windows 11 机器上可能会被阻止；要稳定分发，需要使用可信代码签名证书签名。
+跨机器发布请看 [跨机器发布方案](docs/跨机器发布方案.md)。未签名 EXE 不能作为评审或对外发布包。
 
 ## 开发过程与 PR 记录
 
