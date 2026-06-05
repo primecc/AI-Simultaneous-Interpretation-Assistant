@@ -6,7 +6,7 @@
 
 ## 功能描述
 
-本 PR 上传项目当前完整源码：本地 FastAPI 服务、系统音频监听、本地 Whisper 识别、免 key 中文翻译、桌面悬浮图标、桌面字幕浮层、视频/音频导入、字幕历史、TXT/SRT 导出、浏览器浮层原型、Windows EXE 打包配置、跨机器发布说明和参赛提交规范文档。
+本 PR 上传项目当前完整源码和发布产物：本地 FastAPI 服务、系统音频监听、本地 Whisper 识别、免 key 中文翻译、桌面悬浮图标、桌面字幕浮层、视频/音频导入、字幕历史、TXT/SRT 导出、浏览器浮层原型、Windows EXE 打包配置、跨机器发布说明、参赛提交规范文档、模型权重、根目录 EXE、`_internal/` 运行目录、`dist/` 打包目录和 `release/` 发布压缩包。
 
 ## 实现思路
 
@@ -15,11 +15,13 @@
 - ASR 使用 faster-whisper 本地模型，翻译使用 deep-translator 免 key 在线翻译。
 - 桌面交互使用 Tkinter 实现置顶悬浮按钮、拖动和字幕浮层。
 - 打包使用 PyInstaller one-dir 模式，并补充版本信息、运行库、签名脚本和发布说明。
+- 大体积模型、EXE、DLL 和发布 zip 通过 Git LFS 上传，避免触发 GitHub 普通 Git 单文件大小限制。
 
 ## 测试方式
 
 - `python -m pytest`
 - `python -m ruff check .`
+- 检查 Git LFS 对象上传完成，并确认 PR 分支包含 `release/AI-Simultaneous-Interpreter-windows.zip`。
 - 手动运行 EXE，点击悬浮图标开启/关闭字幕。
 - 手动打开网页工作台上传视频/音频并验证字幕生成和导出。
 

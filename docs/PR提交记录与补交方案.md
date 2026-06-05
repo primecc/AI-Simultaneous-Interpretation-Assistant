@@ -23,10 +23,11 @@
 - 分支：`codex/init-mvp`
 - 基准分支：`main`
 - 首次功能提交：`5627676 feat: implement AI simultaneous interpretation assistant MVP`
+- 发布产物提交：`a079907 build: upload packaged application artifacts`
 - Pull Request：[#1 Implement AI simultaneous interpretation assistant MVP](https://github.com/primecc/AI-Simultaneous-Interpretation-Assistant/pull/1)
 - PR 状态：Draft
 
-说明：该 PR 是本地项目首次上传到 GitHub 后形成的真实 PR 记录。上方“当前审计结论”保留上传前的审计事实，用于说明此前没有可验证 PR 记录；本节记录上传后的结果。
+说明：该 PR 是本地项目首次上传到 GitHub 后形成的真实 PR 记录。上方“当前审计结论”保留上传前的审计事实，用于说明此前没有可验证 PR 记录；本节记录上传后的结果。用户要求“所有文件全都上传”后，已通过 Git LFS 补充上传模型权重、根目录 EXE、`_internal/` 运行目录、`dist/` 打包目录和 `release/` 发布压缩包。
 
 ## 已完成变更记录
 

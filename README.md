@@ -31,7 +31,7 @@ AI-Simultaneous-Interpreter.exe
 
 首次运行会自动准备本地识别模型。无需填写 OpenAI API key，也不需要手动配置浏览器扩展。翻译使用免 key 的在线翻译通道，因此需要保持网络可用。
 
-源码仓库不直接提交大体积模型权重文件。开发运行时默认使用 `tiny.en` 自动下载；发布 EXE 时，如果本地存在完整的 `models/faster-whisper-tiny.en/model.bin`，打包脚本会自动将模型内置到发布包。
+当前分支通过 Git LFS 提交了模型权重、Windows EXE、`_internal/` 运行目录、`dist/` 打包目录和 `release/` 发布压缩包，便于评审直接检查完整发布产物。开发运行时仍可使用 `tiny.en` 自动下载；发布 EXE 时，如果本地存在完整的 `models/faster-whisper-tiny.en/model.bin`，打包脚本会自动将模型内置到发布包。
 
 ## 软件内导入视频/音频
 
