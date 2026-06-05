@@ -9,14 +9,8 @@ __pycache__/
 *.egg-info/
 *.log
 .env
-dist/
 build/
-release/
-_internal/
-AI同声传译助手.exe
-启动软件.cmd
 *.spec.bak
-models/**/model.bin
 htmlcov/
 coverage.xml
 exports/
