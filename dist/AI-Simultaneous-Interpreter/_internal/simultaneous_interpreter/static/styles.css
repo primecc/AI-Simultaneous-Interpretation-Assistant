@@ -175,12 +175,12 @@ h1 {
   bottom: 22px;
   left: 22px;
   display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: rgba(8, 13, 21, 0.78);
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 0;
+  background: transparent;
   color: #fff;
-  backdrop-filter: blur(12px);
+  pointer-events: none;
 }
 
 .live-caption[hidden] {
@@ -188,22 +188,38 @@ h1 {
 }
 
 .live-caption[data-status="corrected"] {
-  outline: 2px solid rgba(26, 144, 255, 0.62);
+  outline: 0;
 }
 
 .live-source {
   margin: 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 14px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 15px;
   line-height: 1.4;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.96),
+    0 0 8px rgba(0, 0, 0, 0.76);
 }
 
 .live-translation {
   margin: 0;
-  font-size: 25px;
+  font-size: 34px;
   font-weight: 780;
-  line-height: 1.35;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.46);
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-shadow:
+    0 2px 2px rgba(0, 0, 0, 0.96),
+    0 0 10px rgba(0, 0, 0, 0.82),
+    0 0 22px rgba(0, 0, 0, 0.58);
+}
+
+.live-caption[data-status="corrected"] .live-translation::before {
+  content: "已修正 ";
+  color: #8bd4ff;
+  font-size: 16px;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.96),
+    0 0 8px rgba(0, 0, 0, 0.76);
 }
 
 .caption-stage {
@@ -307,6 +323,6 @@ h1 {
   }
 
   .live-translation {
-    font-size: 20px;
+    font-size: 25px;
   }
 }

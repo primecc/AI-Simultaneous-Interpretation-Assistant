@@ -66,6 +66,9 @@ def _transcribe(
         language=whisper_language(settings),
         vad_filter=vad_filter,
         beam_size=1,
+        best_of=1,
+        condition_on_previous_text=False,
+        no_speech_threshold=0.65,
     )
 
 

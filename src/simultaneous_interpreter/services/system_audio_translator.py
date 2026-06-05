@@ -1,7 +1,9 @@
 import queue
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 from simultaneous_interpreter.config import Settings
 from simultaneous_interpreter.services.local_runtime import (
@@ -16,9 +18,11 @@ from simultaneous_interpreter.services.local_runtime import (
 
 @dataclass(frozen=True)
 class BackgroundTranslation:
+    segment_id: str
     source_text: str
     translated_text: str
     status: str = "final"
+    revision: int = 1
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,8 @@ class SystemAudioTranslator:
         self._on_status = on_status
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        self._translation_cache: dict[str, str] = {}
+        self._memory = RealtimeCorrectionMemory()
 
     @staticmethod
     def check_readiness(settings: Settings) -> TranslatorReadiness:
@@ -90,8 +96,7 @@ class SystemAudioTranslator:
             device_id = int(loopback_device["index"])
             channels = max(1, min(2, int(loopback_device.get("maxInputChannels") or 2)))
             sample_rate = int(float(loopback_device.get("defaultSampleRate") or 48_000))
-            chunk_seconds = 4
-            frames_per_buffer = sample_rate * chunk_seconds
+            frames_per_buffer = max(1, int(sample_rate * self._settings.audio_chunk_seconds))
 
             self._on_status("正在准备本地识别模型", "首次运行会自动下载小模型，请稍等。")
             model = create_whisper_model(self._settings)
@@ -135,12 +140,9 @@ class SystemAudioTranslator:
 
                 self._on_status("正在翻译", source_text.strip())
                 translated_text = self._translate(translator, source_text)
-                self._on_result(
-                    BackgroundTranslation(
-                        source_text=source_text.strip(),
-                        translated_text=translated_text.strip(),
-                    )
-                )
+                result = self._memory.upsert(source_text.strip(), translated_text.strip())
+                if result is not None:
+                    self._on_result(result)
         except Exception as exc:
             self._on_status("后台翻译已停止", str(exc))
         finally:
@@ -158,7 +160,132 @@ class SystemAudioTranslator:
         return " ".join(segment.text.strip() for segment in segments).strip()
 
     def _translate(self, translator: object, source_text: str) -> str:
-        return translate_text(translator, source_text)
+        cache_key = _normalize_for_compare(source_text)
+        cached = self._translation_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        translated_text = translate_text(translator, source_text)
+        polished = polish_chinese_translation(translated_text, source_text)
+        self._translation_cache[cache_key] = polished
+        if len(self._translation_cache) > 160:
+            oldest_key = next(iter(self._translation_cache))
+            self._translation_cache.pop(oldest_key, None)
+        return polished
+
+
+class RealtimeCorrectionMemory:
+    def __init__(self) -> None:
+        self._counter = 0
+        self._current: BackgroundTranslation | None = None
+
+    def upsert(self, source_text: str, translated_text: str) -> BackgroundTranslation | None:
+        source_text = _clean_source_text(source_text)
+        translated_text = polish_chinese_translation(translated_text, source_text)
+        if not source_text or not translated_text:
+            return None
+
+        if self._current is None:
+            return self._new_segment(source_text, translated_text)
+
+        if _normalize_for_compare(source_text) == _normalize_for_compare(self._current.source_text):
+            if translated_text == self._current.translated_text:
+                return None
+            return self._correct_current(source_text, translated_text)
+
+        if _looks_like_correction(self._current.source_text, source_text):
+            return self._correct_current(source_text, translated_text)
+
+        return self._new_segment(source_text, translated_text)
+
+    def _new_segment(self, source_text: str, translated_text: str) -> BackgroundTranslation:
+        self._counter += 1
+        self._current = BackgroundTranslation(
+            segment_id=f"live-{self._counter:04d}",
+            source_text=source_text,
+            translated_text=translated_text,
+            status="final",
+            revision=1,
+        )
+        return self._current
+
+    def _correct_current(self, source_text: str, translated_text: str) -> BackgroundTranslation:
+        assert self._current is not None
+        self._current = BackgroundTranslation(
+            segment_id=self._current.segment_id,
+            source_text=source_text,
+            translated_text=translated_text,
+            status="corrected",
+            revision=self._current.revision + 1,
+        )
+        return self._current
+
+
+def polish_chinese_translation(translated_text: str, source_text: str = "") -> str:
+    text = translated_text.strip()
+    if not text:
+        return text
+
+    replacements = (
+        ("，并且", "，而且"),
+        ("因此，", "所以，"),
+        ("因此", "所以"),
+        ("然而，", "不过，"),
+        ("然而", "不过"),
+        ("此外，", "另外，"),
+        ("此外", "另外"),
+        ("换句话说，", "也就是说，"),
+        ("换句话说", "也就是说"),
+        ("您可以", "可以"),
+        ("你可以", "可以"),
+        ("我们将会", "我们会"),
+        ("我们将", "我们会"),
+        ("这将会", "这会"),
+        ("它将会", "它会"),
+        ("是非常重要的", "很重要"),
+        ("是很重要的", "很重要"),
+        ("进行使用", "使用"),
+        ("进行处理", "处理"),
+        ("进行构建", "构建"),
+        ("一个非常", "一个很"),
+        ("非常地", "很"),
+    )
+    for source, target in replacements:
+        text = text.replace(source, target)
+
+    text = re.sub(r"\s+", "", text)
+    text = (
+        text.replace(",", "，")
+        .replace(";", "；")
+        .replace(":", "：")
+        .replace("?", "？")
+        .replace("!", "！")
+    )
+    text = re.sub(r"([，。！？；：])\1+", r"\1", text)
+    if source_text.lower().strip().startswith(("so ", "so,", "therefore", "that's why")):
+        text = re.sub(r"^(因此|所以)[，,]?", "所以，", text)
+    if text and text[-1] not in "。！？…":
+        text += "。"
+    return text
+
+
+def _clean_source_text(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    return cleaned.strip(" \t\r\n,，")
+
+
+def _normalize_for_compare(text: str) -> str:
+    return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", text.lower())
+
+
+def _looks_like_correction(previous: str, current: str) -> bool:
+    previous_norm = _normalize_for_compare(previous)
+    current_norm = _normalize_for_compare(current)
+    if not previous_norm or not current_norm:
+        return False
+    if previous_norm in current_norm or current_norm in previous_norm:
+        return True
+    similarity = SequenceMatcher(None, previous_norm, current_norm).ratio()
+    return similarity >= 0.58
 
 
 def _has_enough_volume(audio: object) -> bool:

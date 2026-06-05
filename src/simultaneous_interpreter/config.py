@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     local_asr_model: str = "tiny.en"
     source_language: str = "en"
     target_language: str = "zh"
+    audio_chunk_seconds: float = 2.2
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
