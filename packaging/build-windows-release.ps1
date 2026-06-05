@@ -24,6 +24,37 @@ $rootInternalDir = Join-Path $projectRoot "_internal"
 $releaseDir = Join-Path $projectRoot "release"
 $releaseZip = Join-Path $releaseDir "AI-Simultaneous-Interpreter-windows.zip"
 $rootExeName = -join @("AI", [char]0x540c, [char]0x58f0, [char]0x4f20, [char]0x8bd1, [char]0x52a9, [char]0x624b, ".exe")
+$usageDocName = -join @(
+    "Windows-EXE-",
+    [char]0x4f7f,
+    [char]0x7528,
+    [char]0x8bf4,
+    [char]0x660e,
+    ".md"
+)
+$packedUsageDocName = -join @([char]0x4f7f, [char]0x7528, [char]0x8bf4, [char]0x660e, ".md")
+$rootUsageDocName = -join @("EXE", [char]0x4f7f, [char]0x7528, [char]0x8bf4, [char]0x660e, ".md")
+
+function Copy-DirectoryContents {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+
+    Get-ChildItem -LiteralPath $Source -Recurse -Directory | ForEach-Object {
+        $relative = $_.FullName.Substring($Source.Length).TrimStart("\")
+        New-Item -ItemType Directory -Force -Path (Join-Path $Destination $relative) | Out-Null
+    }
+
+    Get-ChildItem -LiteralPath $Source -Recurse -File | ForEach-Object {
+        $relative = $_.FullName.Substring($Source.Length).TrimStart("\")
+        $target = Join-Path $Destination $relative
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+        Copy-Item -LiteralPath $_.FullName -Destination $target -Force
+    }
+}
 
 if (-not $Python) {
     $Python = "python"
@@ -36,16 +67,12 @@ try {
         throw "PyInstaller build failed."
     }
 
-    Copy-Item -LiteralPath "packaging\Windows-EXE-使用说明.md" -Destination (Join-Path $distDir (-join @([char]0x4f7f, [char]0x7528, [char]0x8bf4, [char]0x660e, ".md"))) -Force
+    Copy-Item -LiteralPath (Join-Path "packaging" $usageDocName) -Destination (Join-Path $distDir $packedUsageDocName) -Force
     Copy-Item -LiteralPath ".env.example" -Destination (Join-Path $distDir ".env.example") -Force
 
-    if (Test-Path -LiteralPath $rootInternalDir) {
-        Remove-Item -LiteralPath $rootInternalDir -Recurse -Force
-    }
-
-    Copy-Item -LiteralPath (Join-Path $distDir "_internal") -Destination $rootInternalDir -Recurse
+    Copy-DirectoryContents -Source (Join-Path $distDir "_internal") -Destination $rootInternalDir
     Copy-Item -LiteralPath (Join-Path $distDir "AI-Simultaneous-Interpreter.exe") -Destination (Join-Path $projectRoot $rootExeName) -Force
-    Copy-Item -LiteralPath (Join-Path $distDir (-join @([char]0x4f7f, [char]0x7528, [char]0x8bf4, [char]0x660e, ".md"))) -Destination (Join-Path $projectRoot (-join @("EXE", [char]0x4f7f, [char]0x7528, [char]0x8bf4, [char]0x660e, ".md"))) -Force
+    Copy-Item -LiteralPath (Join-Path $distDir $packedUsageDocName) -Destination (Join-Path $projectRoot $rootUsageDocName) -Force
 
     if ($SkipSignature) {
         Write-Warning "Code signing was skipped. This package is only for local development and must not be used as an official release."

@@ -14,6 +14,8 @@ from simultaneous_interpreter.services.system_audio_translator import (
 LAUNCHER_SIZE = 72
 LAUNCHER_CENTER = LAUNCHER_SIZE // 2
 TRANSPARENT_COLOR = "#ff00ff"
+CAPTION_BACKGROUND = "#333a45"
+CAPTION_BORDER = "#5f6b7a"
 CAPTION_STATUS_FONT = ("Microsoft YaHei UI", 11, "bold")
 CAPTION_SOURCE_FONT = ("Segoe UI", 13)
 CAPTION_TRANSLATION_FONT = ("Microsoft YaHei UI", 32, "bold")
@@ -104,7 +106,7 @@ class DesktopOverlayApp:
         self.caption.withdraw()
         self.caption.overrideredirect(True)
         self.caption.attributes("-topmost", True)
-        self.caption.attributes("-alpha", 0.98)
+        self.caption.attributes("-alpha", 0.94)
         self.caption.configure(bg=TRANSPARENT_COLOR)
         _set_transparent_color(self.caption)
         _set_window_icon(self.caption)
@@ -138,6 +140,9 @@ class DesktopOverlayApp:
             widget.bind("<ButtonPress-1>", self._begin_caption_drag)
             widget.bind("<B1-Motion>", self._drag_caption)
             widget.bind("<ButtonRelease-1>", self._end_caption_drag)
+        self.caption_canvas.tag_bind("caption-surface", "<ButtonPress-1>", self._begin_caption_drag)
+        self.caption_canvas.tag_bind("caption-surface", "<B1-Motion>", self._drag_caption)
+        self.caption_canvas.tag_bind("caption-surface", "<ButtonRelease-1>", self._end_caption_drag)
 
         self.root.bind("<Escape>", lambda _event: self.close())
         self.root.protocol("WM_DELETE_WINDOW", self.close)
@@ -263,45 +268,61 @@ class DesktopOverlayApp:
         for item in self._caption_items:
             self.caption_canvas.delete(item)
         self._caption_items.clear()
+        self._caption_items.extend(
+            _create_rounded_rectangle(
+                self.caption_canvas,
+                1,
+                1,
+                width - 1,
+                height - 1,
+                radius=14,
+                fill=CAPTION_BACKGROUND,
+                outline=CAPTION_BORDER,
+                tags=("caption-surface",),
+            )
+        )
 
-        text_width = max(320, width - 48)
+        text_width = max(320, width - 56)
         self._caption_items.extend(
             _create_outlined_text(
                 self.caption_canvas,
-                x=24,
-                y=18,
+                x=28,
+                y=20,
                 text=self._caption_status_text,
                 font=CAPTION_STATUS_FONT,
                 fill="#8bd4ff",
-                outline="#06111f",
+                outline="#101722",
                 width=text_width,
+                tags=("caption-surface",),
             )
         )
         if self._caption_source_text:
             self._caption_items.extend(
                 _create_outlined_text(
                     self.caption_canvas,
-                    x=24,
-                    y=48,
+                    x=28,
+                    y=50,
                     text=self._caption_source_text,
                     font=CAPTION_SOURCE_FONT,
                     fill="#e6eef8",
-                    outline="#06111f",
+                    outline="#101722",
                     width=text_width,
                     outline_width=1,
+                    tags=("caption-surface",),
                 )
             )
         self._caption_items.extend(
             _create_outlined_text(
                 self.caption_canvas,
-                x=24,
-                y=84,
+                x=28,
+                y=86,
                 text=self._caption_translation_text,
                 font=CAPTION_TRANSLATION_FONT,
                 fill="#ffffff",
                 outline="#050b16",
                 width=text_width,
                 outline_width=3,
+                tags=("caption-surface",),
             )
         )
 
@@ -503,6 +524,7 @@ def _create_outlined_text(
     outline: str,
     width: int,
     outline_width: int = 2,
+    tags: tuple[str, ...] = (),
 ) -> list[int]:
     if not text:
         return []
@@ -524,6 +546,7 @@ def _create_outlined_text(
                 width=width,
                 font=font,
                 fill=outline,
+                tags=tags,
             )
         )
     items.append(
@@ -536,7 +559,96 @@ def _create_outlined_text(
             width=width,
             font=font,
             fill=fill,
+            tags=tags,
         )
+    )
+    return items
+
+
+def _create_rounded_rectangle(
+    canvas: Any,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    *,
+    radius: int,
+    fill: str,
+    outline: str,
+    tags: tuple[str, ...] = (),
+) -> list[int]:
+    radius = min(radius, int((x2 - x1) / 2), int((y2 - y1) / 2))
+    items = [
+        canvas.create_rectangle(
+            x1 + radius,
+            y1,
+            x2 - radius,
+            y2,
+            fill=fill,
+            outline=fill,
+            tags=tags,
+        ),
+        canvas.create_rectangle(
+            x1,
+            y1 + radius,
+            x2,
+            y2 - radius,
+            fill=fill,
+            outline=fill,
+            tags=tags,
+        ),
+        canvas.create_arc(
+            x1,
+            y1,
+            x1 + radius * 2,
+            y1 + radius * 2,
+            start=90,
+            extent=90,
+            fill=fill,
+            outline=fill,
+            tags=tags,
+        ),
+        canvas.create_arc(
+            x2 - radius * 2,
+            y1,
+            x2,
+            y1 + radius * 2,
+            start=0,
+            extent=90,
+            fill=fill,
+            outline=fill,
+            tags=tags,
+        ),
+        canvas.create_arc(
+            x2 - radius * 2,
+            y2 - radius * 2,
+            x2,
+            y2,
+            start=270,
+            extent=90,
+            fill=fill,
+            outline=fill,
+            tags=tags,
+        ),
+        canvas.create_arc(
+            x1,
+            y2 - radius * 2,
+            x1 + radius * 2,
+            y2,
+            start=180,
+            extent=90,
+            fill=fill,
+            outline=fill,
+            tags=tags,
+        ),
+    ]
+    items.extend(
+        [
+            canvas.create_line(x1 + radius, y1, x2 - radius, y1, fill=outline, tags=tags),
+            canvas.create_line(x2, y1 + radius, x2, y2 - radius, fill=outline, tags=tags),
+            canvas.create_line(x1 + radius, y2, x2 - radius, y2, fill=outline, tags=tags),
+            canvas.create_line(x1, y1 + radius, x1, y2 - radius, fill=outline, tags=tags),
+        ]
     )
     return items
 

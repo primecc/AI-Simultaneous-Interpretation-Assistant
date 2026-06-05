@@ -176,11 +176,14 @@ h1 {
   left: 22px;
   display: grid;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 0;
-  background: transparent;
+  padding: 14px 16px;
+  border: 1px solid rgba(196, 208, 220, 0.34);
+  border-radius: 8px;
+  background: rgba(46, 54, 65, 0.72);
   color: #fff;
   pointer-events: none;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
 }
 
 .live-caption[hidden] {
@@ -319,7 +322,7 @@ h1 {
     right: 12px;
     bottom: 12px;
     left: 12px;
-    padding: 11px 12px;
+    padding: 12px;
   }
 
   .live-translation {
