@@ -42,6 +42,8 @@ class DesktopOverlayApp:
         self._translator: SystemAudioTranslator | None = None
         self._last_trail_at = 0.0
         self._trail_index = 0
+        self._trail_after_jobs: list[str] = []
+        self._closing = False
 
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -138,7 +140,7 @@ class DesktopOverlayApp:
         self.menu.add_command(label="开启/关闭字幕", command=self.toggle)
         self.menu.add_command(label="打开软件界面", command=lambda: webbrowser.open(self._app_url))
         self.menu.add_separator()
-        self.menu.add_command(label="退出", command=self.close)
+        self.menu.add_command(label="退出", command=self._close_from_menu)
 
         for widget in (self.root, self.canvas):
             widget.bind("<ButtonPress-1>", self._begin_drag)
@@ -163,12 +165,16 @@ class DesktopOverlayApp:
         self.root.mainloop()
 
     def toggle(self) -> None:
+        if self._closing:
+            return
         if self._active:
             self.stop()
         else:
             self.start()
 
     def start(self) -> None:
+        if self._closing:
+            return
         settings = get_settings()
         readiness = SystemAudioTranslator.check_readiness(settings)
         self.caption.deiconify()
@@ -200,12 +206,14 @@ class DesktopOverlayApp:
         )
         self._translator = SystemAudioTranslator(
             settings=settings,
-            on_result=lambda result: self.root.after(0, self._show_translation, result),
-            on_status=lambda title, detail: self.root.after(0, self._show_status, title, detail),
+            on_result=lambda result: self._post_to_ui(self._show_translation, result),
+            on_status=lambda title, detail: self._post_to_ui(self._show_status, title, detail),
         )
         self._translator.start()
 
     def stop(self) -> None:
+        if self._closing:
+            return
         self._active = False
         if self._translator is not None:
             self._translator.stop()
@@ -213,34 +221,44 @@ class DesktopOverlayApp:
         self.canvas.itemconfigure(self.status_dot, fill="#9ca3af")
         self.caption.withdraw()
 
+    def _close_from_menu(self) -> None:
+        self._release_menu()
+        try:
+            self.root.after(0, self.close)
+        except Exception:
+            self.close()
+
     def close(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
         self._active = False
+        self._release_menu()
+        self._hide_all_windows()
+        self._cancel_drag_jobs()
+        self._cancel_trail_jobs()
         if self._translator is not None:
             self._translator.stop()
             self._translator = None
-        self._cancel_drag_jobs()
-        try:
-            self.caption.withdraw()
-        except Exception:
-            pass
+
         for window in self._trail_windows:
-            try:
-                window.withdraw()
-                window.destroy()
-            except Exception:
-                pass
+            self._destroy_window(window)
+        self._destroy_window(self.caption)
         try:
-            self.caption.destroy()
+            self.root.quit()
         except Exception:
             pass
         try:
             self.root.update_idletasks()
+        except Exception:
+            pass
+        try:
             self.root.destroy()
         except Exception:
             pass
 
     def _show_translation(self, result: BackgroundTranslation) -> None:
-        if not self._active:
+        if self._closing or not self._active:
             return
         status_text = "实时中文字幕"
         if result.status == "corrected":
@@ -254,6 +272,8 @@ class DesktopOverlayApp:
         self._place_caption()
 
     def _show_status(self, title: str, detail: str) -> None:
+        if self._closing:
+            return
         self.status_label.configure(text=title)
         self.source_label.configure(text=detail, wraplength=self._caption_width() - 36)
         if not self.translation_label.cget("text"):
@@ -316,6 +336,8 @@ class DesktopOverlayApp:
             _save_position(self._launcher_position_path, self._launcher_position)
 
     def _show_menu(self, event: Any) -> None:
+        if self._closing:
+            return
         self.menu.tk_popup(event.x_root, event.y_root)
 
     def _begin_caption_drag(self, event: Any) -> None:
@@ -386,6 +408,58 @@ class DesktopOverlayApp:
                 pass
             self._caption_poll_job = None
 
+    def _cancel_trail_jobs(self) -> None:
+        for job in self._trail_after_jobs:
+            try:
+                self.root.after_cancel(job)
+            except Exception:
+                pass
+        self._trail_after_jobs.clear()
+
+    def _post_to_ui(self, callback: Any, *args: Any) -> None:
+        if self._closing:
+            return
+        try:
+            self.root.after(0, callback, *args)
+        except Exception:
+            return
+
+    def _release_menu(self) -> None:
+        for widget in (self.menu, self.root):
+            try:
+                widget.grab_release()
+            except Exception:
+                pass
+        try:
+            self.menu.unpost()
+        except Exception:
+            pass
+
+    def _hide_all_windows(self) -> None:
+        for window in (self.root, self.caption, *self._trail_windows):
+            self._hide_window(window)
+
+    def _hide_window(self, window: Any) -> None:
+        try:
+            window.attributes("-alpha", 0.0)
+        except Exception:
+            pass
+        try:
+            window.geometry("1x1+-32000+-32000")
+        except Exception:
+            pass
+        try:
+            window.withdraw()
+        except Exception:
+            pass
+
+    def _destroy_window(self, window: Any) -> None:
+        self._hide_window(window)
+        try:
+            window.destroy()
+        except Exception:
+            pass
+
     def _create_trail_windows(self) -> list[Any]:
         windows: list[Any] = []
         for alpha in (0.24, 0.18, 0.13, 0.09, 0.06):
@@ -428,6 +502,8 @@ class DesktopOverlayApp:
         return windows
 
     def _show_drag_trail(self, x: int, y: int) -> None:
+        if self._closing:
+            return
         now = time.monotonic()
         if now - self._last_trail_at < 0.028:
             return
@@ -437,7 +513,10 @@ class DesktopOverlayApp:
         window.geometry(f"{LAUNCHER_SIZE}x{LAUNCHER_SIZE}+{x}+{y}")
         window.deiconify()
         window.lift()
-        self.root.after(180, window.withdraw)
+        try:
+            self._trail_after_jobs.append(self.root.after(180, window.withdraw))
+        except Exception:
+            return
 
     def _caption_width(self) -> int:
         return min(980, max(520, self.root.winfo_screenwidth() - 180))

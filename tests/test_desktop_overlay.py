@@ -41,6 +41,13 @@ class FakeWindow:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.geometry_value = ""
+        self.alpha_values: list[float] = []
+        self.withdrawn = False
+        self.destroyed = False
+        self.quit_called = False
+        self.updated = False
+        self.cancelled_jobs: list[str] = []
+        self.grab_released = False
 
     def winfo_screenwidth(self) -> int:
         return self.screen_width
@@ -50,6 +57,48 @@ class FakeWindow:
 
     def geometry(self, value: str) -> None:
         self.geometry_value = value
+
+    def attributes(self, name: str, value: float) -> None:
+        if name == "-alpha":
+            self.alpha_values.append(value)
+
+    def withdraw(self) -> None:
+        self.withdrawn = True
+
+    def destroy(self) -> None:
+        self.destroyed = True
+
+    def quit(self) -> None:
+        self.quit_called = True
+
+    def update_idletasks(self) -> None:
+        self.updated = True
+
+    def after_cancel(self, job: str) -> None:
+        self.cancelled_jobs.append(job)
+
+    def grab_release(self) -> None:
+        self.grab_released = True
+
+
+class FakeMenu:
+    def __init__(self) -> None:
+        self.grab_released = False
+        self.unposted = False
+
+    def grab_release(self) -> None:
+        self.grab_released = True
+
+    def unpost(self) -> None:
+        self.unposted = True
+
+
+class FakeTranslatorWorker:
+    def __init__(self) -> None:
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
 
 
 def test_media_pipeline_streams_real_interpreter_segments(monkeypatch) -> None:
@@ -125,6 +174,42 @@ def test_caption_drag_moves_with_pointer_offset() -> None:
     assert app._caption_dragged is True
     assert app._caption_position == (117, 156)
     assert app.caption.geometry_value == "620x156+117+156"
+
+
+def test_close_hides_and_destroys_all_overlay_windows() -> None:
+    app = DesktopOverlayApp.__new__(DesktopOverlayApp)
+    app.root = FakeWindow()
+    app.caption = FakeWindow()
+    app.menu = FakeMenu()
+    trail_windows = [FakeWindow(), FakeWindow()]
+    app._trail_windows = trail_windows
+    app._translator = FakeTranslatorWorker()
+    app._active = True
+    app._closing = False
+    app._launcher_poll_job = "launcher-job"
+    app._caption_poll_job = "caption-job"
+    app._trail_after_jobs = ["trail-job-1", "trail-job-2"]
+
+    app.close()
+
+    assert app._closing is True
+    assert app._active is False
+    assert app._translator is None
+    assert app.root.withdrawn is True
+    assert app.root.destroyed is True
+    assert app.root.quit_called is True
+    assert app.caption.destroyed is True
+    assert all(window.destroyed for window in trail_windows)
+    assert app.root.cancelled_jobs == [
+        "launcher-job",
+        "caption-job",
+        "trail-job-1",
+        "trail-job-2",
+    ]
+    assert app._launcher_poll_job is None
+    assert app._caption_poll_job is None
+    assert app._trail_after_jobs == []
+    assert app.menu.unposted is True
 
 
 def test_frozen_asset_path_points_to_packaged_assets(monkeypatch, tmp_path) -> None:
