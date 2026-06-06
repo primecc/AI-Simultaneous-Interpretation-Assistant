@@ -48,7 +48,8 @@ Get-ChildItem -LiteralPath $projectRoot -File -Filter "*.exe" |
 if ($SignAllBinaries) {
     foreach ($directory in @($distDir, $rootInternalDir)) {
         if (Test-Path -LiteralPath $directory) {
-            Get-ChildItem -LiteralPath $directory -Recurse -File -Include *.exe, *.dll, *.pyd |
+            Get-ChildItem -LiteralPath $directory -Recurse -File |
+                Where-Object { $_.Extension -in @(".exe", ".dll", ".pyd") } |
                 ForEach-Object { Add-SignTarget -Targets $targets -Path $_.FullName }
         }
     }

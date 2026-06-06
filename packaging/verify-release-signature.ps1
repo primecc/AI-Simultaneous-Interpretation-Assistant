@@ -33,7 +33,8 @@ Get-ChildItem -LiteralPath $projectRoot -File -Filter "*.exe" |
 if ($AllBinaries) {
     foreach ($directory in @($distDir, $rootInternalDir)) {
         if (Test-Path -LiteralPath $directory) {
-            Get-ChildItem -LiteralPath $directory -Recurse -File -Include *.exe, *.dll, *.pyd |
+            Get-ChildItem -LiteralPath $directory -Recurse -File |
+                Where-Object { $_.Extension -in @(".exe", ".dll", ".pyd") } |
                 ForEach-Object { Add-VerifyTarget -Targets $targets -Path $_.FullName }
         }
     }

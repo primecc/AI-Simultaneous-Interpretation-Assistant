@@ -21,6 +21,7 @@
 9. 退出流程先隐藏所有浮窗、取消拖影 after 任务、释放菜单焦点，再停止翻译并销毁主窗口，修复退出残留白框。
 10. README 从头到尾更新，补充最新功能、配置、发布方式和依赖说明。
 11. 补充 Windows 可信签名发布门禁，避免未签名 EXE 被 Smart App Control 拦截后仍被当作正式包。
+12. 新增发布前检查清单和项目工作规则；打包脚本禁止单独使用 `-SkipSignature`，必须额外确认本机自测，防止再次误交未签名发布包；签名/验签脚本只扫描 EXE/DLL/PYD 二进制文件。
 
 ## 实现思路
 
@@ -34,7 +35,7 @@
 - 大体积模型、EXE、DLL 和发布 zip 通过 Git LFS 上传，避免触发 GitHub 普通 Git 单文件大小限制。
 - 桌面字幕使用可拖动 Tk Label 独立窗体，按住字幕任意文字区域都能移动；悬浮窗使用 96px 专用图标直显，不再叠加旧圆形描边。
 - 实时翻译增加 `RealtimeCorrectionMemory`，用相似度判断修正同一字幕片段。
-- Windows 正式发布改为 `build-windows-release.ps1` 流程，默认要求 Authenticode 签名和验签；`-SkipSignature` 仅允许本机开发自测。
+- Windows 正式发布改为 `build-windows-release.ps1` 流程，默认要求 Authenticode 签名和验签；`-SkipSignature` 必须配合 `-AllowUnsignedLocalTestBuild`，只能用于本机开发自测。
 
 ## 测试方式
 
@@ -43,6 +44,7 @@
 - 重新打包 Windows EXE 并刷新根目录、`dist/`、`_internal/` 和 `release/` 产物。
 - 检查 Git LFS 对象上传完成，并确认 PR 分支包含 `release/AI-Simultaneous-Interpreter-windows.zip`。
 - 运行 `verify-release-signature.ps1`，确认当前未签名 EXE 会被发布门禁拦截。
+- 运行 `build-windows-release.ps1 -SkipSignature` 负向检查，确认脚本会拒绝未明确标记的未签名发布包。
 - 手动运行 EXE，点击悬浮图标开启/关闭字幕。
 - 手动打开网页工作台上传视频/音频并验证字幕生成和导出。
 

@@ -13,7 +13,9 @@ param(
 
     [switch]$SignAllBinaries,
 
-    [switch]$SkipSignature
+    [switch]$SkipSignature,
+
+    [switch]$AllowUnsignedLocalTestBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,6 +70,10 @@ if (-not $Python) {
     $Python = "python"
 }
 
+if ($SkipSignature -and -not $AllowUnsignedLocalTestBuild) {
+    throw "-SkipSignature now requires -AllowUnsignedLocalTestBuild. Unsigned EXE files are local test builds only and can be blocked by Windows Smart App Control."
+}
+
 Push-Location $projectRoot
 try {
     & $Python -m PyInstaller "packaging\AI-Simultaneous-Interpreter.spec" --noconfirm --clean
@@ -83,7 +89,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $distDir $packedUsageDocName) -Destination (Join-Path $projectRoot $rootUsageDocName) -Force
 
     if ($SkipSignature) {
-        Write-Warning "Code signing was skipped. This package is only for local development and must not be used as an official release."
+        Write-Warning "Code signing was skipped. This is an unsigned LOCAL TEST build only. Windows Smart App Control can block it, and it must not be used as an official release."
     } else {
         $signArgs = @{
             TimestampUrl = $TimestampUrl

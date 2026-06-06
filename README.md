@@ -114,7 +114,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
   -SignAllBinaries
 ```
 
-发布脚本会重新打包、同步根目录 EXE、执行 Authenticode 签名、验签，并生成 release zip。没有可信证书时脚本会失败，这是为了防止再次产出会被 Smart App Control 拦截的包。仅本机调试时才允许显式加 `-SkipSignature`。
+发布脚本会重新打包、同步根目录 EXE、执行 Authenticode 签名、验签，并生成 release zip。没有可信证书时脚本会失败，这是为了防止再次产出会被 Smart App Control 拦截的包。仅本机调试时才允许显式加 `-SkipSignature -AllowUnsignedLocalTestBuild`，且必须明确标记为未签名本机自测包。
 
 构建结果：
 
@@ -130,7 +130,7 @@ release\AI-Simultaneous-Interpreter-windows.zip
 
 也可以使用项目根目录的 `AI同声传译助手.exe`，但必须保留旁边的 `_internal/` 目录。
 
-跨机器发布请看 [跨机器发布方案](docs/跨机器发布方案.md)。未签名 EXE 不能作为评审或对外发布包。
+跨机器发布请看 [跨机器发布方案](docs/跨机器发布方案.md)，每次发布前按 [发布前检查清单](docs/发布前检查清单.md) 验签。未签名 EXE 不能作为评审或对外发布包。
 
 ## 开发过程与 PR 记录
 
