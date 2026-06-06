@@ -2,6 +2,9 @@
 
 面向英语演讲、技术分享、国际会议和网课场景的桌面同传工具。启动后显示一个可拖动的高清圆角悬浮图标，点击后直接听取电脑正在播放的网页或软件声音，识别英文语音并以最初版深色半透明字幕条显示中文翻译。
 
+## demo链接
+https://www.bilibili.com/video/BV1Gw7Q6yEfp/?spm_id_from=333.1387.homepage.video_card.click&vd_source=0af49a90815c140af83abe95c3955fb7
+
 ## 当前能力
 
 - Windows 桌面高清圆角悬浮图标，一键开启/关闭字幕
