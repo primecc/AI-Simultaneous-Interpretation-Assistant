@@ -23,6 +23,7 @@
 11. 补充 Windows 可信签名发布门禁，避免未签名 EXE 被 Smart App Control 拦截后仍被当作正式包。
 12. 新增发布前检查清单和项目工作规则；打包脚本禁止单独使用 `-SkipSignature`，必须额外确认本机自测，防止再次误交未签名发布包；签名/验签脚本只扫描 EXE/DLL/PYD 二进制文件。
 13. 新增当前用户本机测试发布者脚本，已对根目录 EXE 和 dist EXE 执行本机可信签名，缓解当前开发电脑反复出现的 Windows 智能应用控制拦截。
+14. 正式发布验签增加 `-RequirePublicPublisher`，会拒绝自签/本机测试证书，避免把“本机可运行”误说成“所有电脑可运行”。
 
 ## 实现思路
 
@@ -36,7 +37,7 @@
 - 大体积模型、EXE、DLL 和发布 zip 通过 Git LFS 上传，避免触发 GitHub 普通 Git 单文件大小限制。
 - 桌面字幕使用可拖动 Tk Label 独立窗体，按住字幕任意文字区域都能移动；悬浮窗使用 96px 专用图标直显，不再叠加旧圆形描边。
 - 实时翻译增加 `RealtimeCorrectionMemory`，用相似度判断修正同一字幕片段。
-- Windows 正式发布改为 `build-windows-release.ps1` 流程，默认要求 Authenticode 签名和验签；`-SkipSignature` 必须配合 `-AllowUnsignedLocalTestBuild`，只能用于本机开发自测。
+- Windows 正式发布改为 `build-windows-release.ps1` 流程，默认要求 Authenticode 签名和公开发布者验签；`-SkipSignature` 必须配合 `-AllowUnsignedLocalTestBuild`，只能用于本机开发自测。
 - `trust-local-test-publisher.ps1` 使用当前用户证书库创建或复用本机代码签名证书，并通过 `Set-AuthenticodeSignature` 签当前 EXE；没有 Windows SDK 时，`sign-release.ps1` 也会回退到 PowerShell Authenticode 签名。
 
 ## 测试方式
@@ -48,6 +49,7 @@
 - 运行 `verify-release-signature.ps1`，确认当前未签名 EXE 会被发布门禁拦截。
 - 运行 `build-windows-release.ps1 -SkipSignature` 负向检查，确认脚本会拒绝未明确标记的未签名发布包。
 - 运行 `trust-local-test-publisher.ps1 -SignCurrentBuild -RefreshReleaseZip`，确认根目录 EXE 和 dist EXE 签名状态为 `Valid`。
+- 运行 `verify-release-signature.ps1 -RequirePublicPublisher`，确认当前本机测试证书会被正式发布门禁拒绝；正式上交需替换为可信 CA 证书。
 - 手动运行 EXE，点击悬浮图标开启/关闭字幕。
 - 手动打开网页工作台上传视频/音频并验证字幕生成和导出。
 

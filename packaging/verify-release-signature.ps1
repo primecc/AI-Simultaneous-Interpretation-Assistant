@@ -1,5 +1,7 @@
 param(
-    [switch]$AllBinaries
+    [switch]$AllBinaries,
+
+    [switch]$RequirePublicPublisher
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,12 +51,31 @@ foreach ($target in $targets) {
     $signature = Get-AuthenticodeSignature -LiteralPath $target
     if ($signature.Status -ne "Valid") {
         $failures += "$target => $($signature.Status)"
+        continue
+    }
+
+    if ($RequirePublicPublisher) {
+        $certificate = $signature.SignerCertificate
+        if ($null -eq $certificate) {
+            $failures += "$target => Missing signer certificate"
+            continue
+        }
+
+        $isSelfSigned = $certificate.Subject -eq $certificate.Issuer
+        $isLocalTestPublisher = $certificate.Subject -like "*Local Test Publisher*"
+        if ($isSelfSigned -or $isLocalTestPublisher) {
+            $failures += "$target => Local/self-signed test certificate is not valid for cross-machine release: $($certificate.Subject)"
+        }
     }
 }
 
 if ($failures.Count -gt 0) {
-    $message = "Release signature verification failed. Smart App Control can block EXE files that do not have a trusted signature.`n" + ($failures -join "`n")
+    $message = "Release signature verification failed. Smart App Control can block EXE files that do not have a trusted public CA signature.`n" + ($failures -join "`n")
     throw $message
 }
 
-Write-Host "Release signature verification passed: $($targets.Count) files"
+if ($RequirePublicPublisher) {
+    Write-Host "Public release signature verification passed: $($targets.Count) files"
+} else {
+    Write-Host "Release signature verification passed: $($targets.Count) files"
+}

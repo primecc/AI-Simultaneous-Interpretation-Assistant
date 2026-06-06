@@ -102,7 +102,9 @@ try {
 
         & (Join-Path $PSScriptRoot "sign-release.ps1") @signArgs
 
-        $verifyArgs = @{}
+        $verifyArgs = @{
+            RequirePublicPublisher = $true
+        }
         if ($SignAllBinaries) { $verifyArgs.AllBinaries = $true }
         & (Join-Path $PSScriptRoot "verify-release-signature.ps1") @verifyArgs
     }

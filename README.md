@@ -116,6 +116,14 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
 发布脚本会重新打包、同步根目录 EXE、执行 Authenticode 签名、验签，并生成 release zip。没有可信证书时脚本会失败，这是为了防止再次产出会被 Smart App Control 拦截的包。仅本机调试时才允许显式加 `-SkipSignature -AllowUnsignedLocalTestBuild`，且必须明确标记为未签名本机自测包。
 
+正式上交前必须再跑公开发布者验签：
+
+```powershell
+.\packaging\verify-release-signature.ps1 -RequirePublicPublisher
+```
+
+如果这里失败，说明当前包只适合本机自测，不能承诺在所有评委电脑上直接运行。要让陌生 Windows 电脑也尽量顺利运行，需要使用可信 CA 的代码签名证书或 Microsoft Trusted Signing；自签证书不能替代正式证书。
+
 如果只是当前开发电脑反复被“智能应用控制已阻止可能不安全的应用”挡住，可以创建当前用户本机测试发布者并签当前 EXE：
 
 ```powershell
