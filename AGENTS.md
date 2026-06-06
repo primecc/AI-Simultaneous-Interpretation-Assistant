@@ -16,6 +16,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
 - If signature verification fails or no trusted OV/EV code-signing certificate is available, say so plainly and do not claim the package will run on all Windows machines.
 - A self-signed certificate, icon change, manifest edit, filename change, zip file, or code change does not solve Smart App Control for other users. The real fix is trusted Authenticode signing plus normal reputation.
+- For the current developer machine only, run `.\packaging\trust-local-test-publisher.ps1 -SignCurrentBuild -RefreshReleaseZip` after rebuilding an EXE so the root EXE and release zip EXE at least verify as `Valid` for the current Windows user.
 
 ## Desktop Overlay Regression Checks
 
