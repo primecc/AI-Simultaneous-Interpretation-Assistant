@@ -5,6 +5,11 @@ from simultaneous_interpreter.services.system_audio_translator import (
 )
 
 
+class FailingTranslator:
+    def translate(self, _text: str) -> str:
+        raise RuntimeError("HTTPSConnectionPool(host='translate.google.com') SSLEOFError")
+
+
 def test_system_audio_translator_no_longer_requires_openai_key() -> None:
     from simultaneous_interpreter.config import Settings
 
@@ -44,3 +49,20 @@ def test_realtime_memory_skips_exact_duplicate() -> None:
 
     assert first is not None
     assert duplicate is None
+
+
+def test_translation_network_failure_reports_status_without_raising() -> None:
+    from simultaneous_interpreter.config import Settings
+
+    statuses: list[tuple[str, str]] = []
+    translator = SystemAudioTranslator(
+        settings=Settings(),
+        on_result=lambda _result: None,
+        on_status=lambda title, detail: statuses.append((title, detail)),
+    )
+
+    translated = translator._translate_or_report(FailingTranslator(), "hello")
+
+    assert translated is None
+    assert statuses[-1][0] == "翻译网络暂时不可用"
+    assert "继续监听" in statuses[-1][1]

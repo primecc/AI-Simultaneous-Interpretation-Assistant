@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from simultaneous_interpreter.config import Settings
 from simultaneous_interpreter.desktop_overlay import (
+    DesktopOverlayApp,
     _asset_path,
     _load_caption_position,
     _save_caption_position,
@@ -22,6 +23,22 @@ class FakeTranslator:
     def translate(self, text: str) -> str:
         assert text == "Hello from the talk."
         return "来自演讲的你好。"
+
+
+class FakeWindow:
+    def __init__(self, *, screen_width: int = 800, screen_height: int = 600) -> None:
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+        self.geometry_value = ""
+
+    def winfo_screenwidth(self) -> int:
+        return self.screen_width
+
+    def winfo_screenheight(self) -> int:
+        return self.screen_height
+
+    def geometry(self, value: str) -> None:
+        self.geometry_value = value
 
 
 def test_media_pipeline_streams_real_interpreter_segments(monkeypatch) -> None:
@@ -56,6 +73,22 @@ def test_caption_position_round_trips(tmp_path) -> None:
     _save_caption_position(position_path, (120, 360))
 
     assert _load_caption_position(position_path) == (120, 360)
+
+
+def test_caption_drag_moves_with_pointer_offset() -> None:
+    app = DesktopOverlayApp.__new__(DesktopOverlayApp)
+    app.root = FakeWindow()
+    app.caption = FakeWindow()
+    app._caption_drag_start = (10, 10)
+    app._caption_drag_offset = (3, 4)
+    app._caption_dragged = False
+    app._caption_position = None
+
+    app._move_caption_to_pointer(120, 160)
+
+    assert app._caption_dragged is True
+    assert app._caption_position == (117, 156)
+    assert app.caption.geometry_value == "620x156+117+156"
 
 
 def test_frozen_asset_path_points_to_packaged_assets(monkeypatch, tmp_path) -> None:

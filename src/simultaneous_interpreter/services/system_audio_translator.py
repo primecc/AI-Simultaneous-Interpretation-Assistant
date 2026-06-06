@@ -139,7 +139,9 @@ class SystemAudioTranslator:
                     continue
 
                 self._on_status("正在翻译", source_text.strip())
-                translated_text = self._translate(translator, source_text)
+                translated_text = self._translate_or_report(translator, source_text)
+                if not translated_text:
+                    continue
                 result = self._memory.upsert(source_text.strip(), translated_text.strip())
                 if result is not None:
                     self._on_result(result)
@@ -171,6 +173,16 @@ class SystemAudioTranslator:
             oldest_key = next(iter(self._translation_cache))
             self._translation_cache.pop(oldest_key, None)
         return polished
+
+    def _translate_or_report(self, translator: object, source_text: str) -> str | None:
+        try:
+            return self._translate(translator, source_text)
+        except Exception as exc:
+            self._on_status(
+                "翻译网络暂时不可用",
+                f"{_brief_translation_error(exc)}。后台仍在继续监听网页/系统音频。",
+            )
+            return None
 
 
 class RealtimeCorrectionMemory:
@@ -286,6 +298,18 @@ def _looks_like_correction(previous: str, current: str) -> bool:
         return True
     similarity = SequenceMatcher(None, previous_norm, current_norm).ratio()
     return similarity >= 0.58
+
+
+def _brief_translation_error(exc: Exception) -> str:
+    message = str(exc).strip()
+    lowered = message.lower()
+    if "translate.google.com" in lowered or "ssleoferror" in lowered:
+        return "Google 免费翻译通道连接被中断"
+    if "max retries exceeded" in lowered:
+        return "翻译服务连接超时"
+    if not message:
+        return exc.__class__.__name__
+    return message[:120]
 
 
 def _has_enough_volume(audio: object) -> bool:

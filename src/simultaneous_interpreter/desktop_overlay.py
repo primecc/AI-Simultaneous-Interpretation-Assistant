@@ -15,11 +15,7 @@ LAUNCHER_SIZE = 96
 LAUNCHER_CENTER = LAUNCHER_SIZE // 2
 LAUNCHER_ICON_FILE = "app-icon-launcher-96.png"
 TRANSPARENT_COLOR = "#ff00ff"
-CAPTION_BACKGROUND = "#333a45"
-CAPTION_BORDER = "#5f6b7a"
-CAPTION_STATUS_FONT = ("Microsoft YaHei UI", 11, "bold")
-CAPTION_SOURCE_FONT = ("Segoe UI", 13)
-CAPTION_TRANSLATION_FONT = ("Microsoft YaHei UI", 32, "bold")
+CAPTION_BG = "#0b1220"
 
 
 class DesktopOverlayApp:
@@ -37,15 +33,15 @@ class DesktopOverlayApp:
         self._launcher_position_path = Path.cwd() / "launcher-position.json"
         self._launcher_position = _load_position(self._launcher_position_path)
         self._caption_dragged = False
+        self._caption_dragging = False
         self._caption_drag_start = (0, 0)
+        self._caption_drag_offset = (0, 0)
+        self._caption_poll_job: str | None = None
         self._caption_position_path = Path.cwd() / "caption-position.json"
         self._caption_position = _load_position(self._caption_position_path)
         self._translator: SystemAudioTranslator | None = None
         self._last_trail_at = 0.0
         self._trail_index = 0
-        self._caption_status_text = "同传已开启"
-        self._caption_source_text = ""
-        self._caption_translation_text = ""
 
         self.root = tk.Tk()
         self.root.overrideredirect(True)
@@ -107,19 +103,36 @@ class DesktopOverlayApp:
         self.caption.withdraw()
         self.caption.overrideredirect(True)
         self.caption.attributes("-topmost", True)
-        self.caption.attributes("-alpha", 0.94)
-        self.caption.configure(bg=TRANSPARENT_COLOR)
-        _set_transparent_color(self.caption)
+        self.caption.attributes("-alpha", 0.9)
+        self.caption.configure(bg=CAPTION_BG)
         _set_window_icon(self.caption)
-        self.caption_canvas = tk.Canvas(
+
+        self.status_label = tk.Label(
             self.caption,
-            width=self._caption_width(),
-            height=self._caption_height(),
-            highlightthickness=0,
-            bg=TRANSPARENT_COLOR,
+            text="同传已开启",
+            bg=CAPTION_BG,
+            fg="#8bd4ff",
+            font=("Microsoft YaHei UI", 10, "bold"),
         )
-        self.caption_canvas.pack(fill="both", expand=True)
-        self._caption_items: list[int] = []
+        self.status_label.pack(anchor="w", padx=18, pady=(13, 2))
+        self.source_label = tk.Label(
+            self.caption,
+            text="",
+            bg=CAPTION_BG,
+            fg="#b6c2d2",
+            justify="left",
+            font=("Segoe UI", 11),
+        )
+        self.source_label.pack(anchor="w", fill="x", padx=18)
+        self.translation_label = tk.Label(
+            self.caption,
+            text="",
+            bg=CAPTION_BG,
+            fg="#ffffff",
+            justify="left",
+            font=("Microsoft YaHei UI", 24, "bold"),
+        )
+        self.translation_label.pack(anchor="w", fill="x", padx=18, pady=(4, 16))
 
         self.menu = tk.Menu(self.root, tearoff=0)
         self.menu.add_command(label="开启/关闭字幕", command=self.toggle)
@@ -137,18 +150,14 @@ class DesktopOverlayApp:
         self.canvas.tag_bind("launcher", "<ButtonRelease-1>", self._end_drag)
         self.canvas.tag_bind("launcher", "<Button-3>", self._show_menu)
 
-        for widget in (self.caption, self.caption_canvas):
+        for widget in (self.caption, self.status_label, self.source_label, self.translation_label):
             widget.bind("<ButtonPress-1>", self._begin_caption_drag)
             widget.bind("<B1-Motion>", self._drag_caption)
             widget.bind("<ButtonRelease-1>", self._end_caption_drag)
-        self.caption_canvas.tag_bind("caption-surface", "<ButtonPress-1>", self._begin_caption_drag)
-        self.caption_canvas.tag_bind("caption-surface", "<B1-Motion>", self._drag_caption)
-        self.caption_canvas.tag_bind("caption-surface", "<ButtonRelease-1>", self._end_caption_drag)
 
         self.root.bind("<Escape>", lambda _event: self.close())
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self._place_caption()
-        self._render_caption()
 
     def run(self) -> None:
         self.root.mainloop()
@@ -168,19 +177,27 @@ class DesktopOverlayApp:
         if not readiness.ready:
             self._active = False
             self.canvas.itemconfigure(self.status_dot, fill="#f97316")
-            self._set_caption_text(
-                status=readiness.title,
-                source=readiness.detail,
-                translation="未启动真实网页音频翻译",
+            self.status_label.configure(text=readiness.title)
+            self.source_label.configure(
+                text=readiness.detail,
+                wraplength=self._caption_width() - 36,
+            )
+            self.translation_label.configure(
+                text="未启动真实网页音频翻译",
+                wraplength=self._caption_width() - 36,
             )
             return
 
         self._active = True
         self.canvas.itemconfigure(self.status_dot, fill="#18c47f")
-        self._set_caption_text(status=readiness.title)
+        self.status_label.configure(text=readiness.title)
         self.caption.deiconify()
         self._place_caption()
-        self._set_caption_text(source=readiness.detail, translation="正在等待网页音频")
+        self.source_label.configure(text=readiness.detail, wraplength=self._caption_width() - 36)
+        self.translation_label.configure(
+            text="正在等待网页音频",
+            wraplength=self._caption_width() - 36,
+        )
         self._translator = SystemAudioTranslator(
             settings=settings,
             on_result=lambda result: self.root.after(0, self._show_translation, result),
@@ -201,12 +218,7 @@ class DesktopOverlayApp:
         if self._translator is not None:
             self._translator.stop()
             self._translator = None
-        if self._launcher_poll_job is not None:
-            try:
-                self.root.after_cancel(self._launcher_poll_job)
-            except Exception:
-                pass
-            self._launcher_poll_job = None
+        self._cancel_drag_jobs()
         try:
             self.caption.withdraw()
         except Exception:
@@ -233,96 +245,19 @@ class DesktopOverlayApp:
         status_text = "实时中文字幕"
         if result.status == "corrected":
             status_text = f"实时中文字幕 · 已自动修正第 {result.revision} 版"
-        self._set_caption_text(
-            status=status_text,
-            source=result.source_text,
-            translation=result.translated_text,
+        self.status_label.configure(text=status_text)
+        self.source_label.configure(text=result.source_text, wraplength=self._caption_width() - 36)
+        self.translation_label.configure(
+            text=result.translated_text,
+            wraplength=self._caption_width() - 36,
         )
         self._place_caption()
 
     def _show_status(self, title: str, detail: str) -> None:
-        translation = self._caption_translation_text or "等待字幕"
-        self._set_caption_text(status=title, source=detail, translation=translation)
-
-    def _set_caption_text(
-        self,
-        *,
-        status: str | None = None,
-        source: str | None = None,
-        translation: str | None = None,
-    ) -> None:
-        if status is not None:
-            self._caption_status_text = status
-        if source is not None:
-            self._caption_source_text = source
-        if translation is not None:
-            self._caption_translation_text = translation
-        self._render_caption()
-
-    def _render_caption(self) -> None:
-        width = self._caption_width()
-        height = self._caption_height()
-        self.caption_canvas.configure(width=width, height=height)
-        for item in self._caption_items:
-            self.caption_canvas.delete(item)
-        self._caption_items.clear()
-        self._caption_items.extend(
-            _create_rounded_rectangle(
-                self.caption_canvas,
-                1,
-                1,
-                width - 1,
-                height - 1,
-                radius=14,
-                fill=CAPTION_BACKGROUND,
-                outline=CAPTION_BORDER,
-                tags=("caption-surface",),
-            )
-        )
-
-        text_width = max(320, width - 56)
-        self._caption_items.extend(
-            _create_outlined_text(
-                self.caption_canvas,
-                x=28,
-                y=20,
-                text=self._caption_status_text,
-                font=CAPTION_STATUS_FONT,
-                fill="#8bd4ff",
-                outline="#101722",
-                width=text_width,
-                tags=("caption-surface",),
-            )
-        )
-        if self._caption_source_text:
-            self._caption_items.extend(
-                _create_outlined_text(
-                    self.caption_canvas,
-                    x=28,
-                    y=50,
-                    text=self._caption_source_text,
-                    font=CAPTION_SOURCE_FONT,
-                    fill="#e6eef8",
-                    outline="#101722",
-                    width=text_width,
-                    outline_width=1,
-                    tags=("caption-surface",),
-                )
-            )
-        self._caption_items.extend(
-            _create_outlined_text(
-                self.caption_canvas,
-                x=28,
-                y=86,
-                text=self._caption_translation_text,
-                font=CAPTION_TRANSLATION_FONT,
-                fill="#ffffff",
-                outline="#050b16",
-                width=text_width,
-                outline_width=3,
-                tags=("caption-surface",),
-            )
-        )
+        self.status_label.configure(text=title)
+        self.source_label.configure(text=detail, wraplength=self._caption_width() - 36)
+        if not self.translation_label.cget("text"):
+            self.translation_label.configure(text="等待字幕")
 
     def _begin_drag(self, event: Any) -> None:
         if self._launcher_dragging and self._launcher_poll_job is not None:
@@ -384,27 +319,72 @@ class DesktopOverlayApp:
         self.menu.tk_popup(event.x_root, event.y_root)
 
     def _begin_caption_drag(self, event: Any) -> None:
+        if self._caption_dragging and self._caption_poll_job is not None:
+            return
         self._caption_dragged = False
         self._caption_drag_start = (event.x_root, event.y_root)
+        self._caption_dragging = True
+        self._caption_drag_offset = (
+            event.x_root - self.caption.winfo_x(),
+            event.y_root - self.caption.winfo_y(),
+        )
+        self._poll_caption_drag()
 
     def _drag_caption(self, event: Any) -> None:
-        start_x, start_y = self._caption_drag_start
-        dx = event.x_root - start_x
-        dy = event.y_root - start_y
-        if abs(dx) + abs(dy) > 3:
-            self._caption_dragged = True
-        width = self._caption_width()
-        height = self._caption_height()
-        x = self.caption.winfo_x() + dx
-        y = self.caption.winfo_y() + dy
-        x, y = self._clamp_caption_position(x, y, width, height)
-        self._caption_position = (x, y)
-        self.caption.geometry(f"{width}x{height}+{x}+{y}")
-        self._caption_drag_start = (event.x_root, event.y_root)
+        self._move_caption_to_pointer(event.x_root, event.y_root)
 
     def _end_caption_drag(self, _event: Any) -> None:
+        self._finish_caption_drag()
+
+    def _poll_caption_drag(self) -> None:
+        if not self._caption_dragging:
+            return
+        if not _is_left_button_down():
+            self._finish_caption_drag()
+            return
+        x_root, y_root = self.root.winfo_pointerxy()
+        self._move_caption_to_pointer(x_root, y_root)
+        self._caption_poll_job = self.root.after(16, self._poll_caption_drag)
+
+    def _move_caption_to_pointer(self, x_root: int, y_root: int) -> None:
+        start_x, start_y = self._caption_drag_start
+        if abs(x_root - start_x) + abs(y_root - start_y) > 3:
+            self._caption_dragged = True
+        if not self._caption_dragged:
+            return
+        width = self._caption_width()
+        height = self._caption_height()
+        offset_x, offset_y = self._caption_drag_offset
+        x, y = self._clamp_caption_position(x_root - offset_x, y_root - offset_y, width, height)
+        self._caption_position = (x, y)
+        self.caption.geometry(f"{width}x{height}+{x}+{y}")
+
+    def _finish_caption_drag(self) -> None:
+        if not self._caption_dragging:
+            return
+        self._caption_dragging = False
+        if self._caption_poll_job is not None:
+            try:
+                self.root.after_cancel(self._caption_poll_job)
+            except Exception:
+                pass
+            self._caption_poll_job = None
         if self._caption_dragged and self._caption_position is not None:
             _save_position(self._caption_position_path, self._caption_position)
+
+    def _cancel_drag_jobs(self) -> None:
+        if self._launcher_poll_job is not None:
+            try:
+                self.root.after_cancel(self._launcher_poll_job)
+            except Exception:
+                pass
+            self._launcher_poll_job = None
+        if self._caption_poll_job is not None:
+            try:
+                self.root.after_cancel(self._caption_poll_job)
+            except Exception:
+                pass
+            self._caption_poll_job = None
 
     def _create_trail_windows(self) -> list[Any]:
         windows: list[Any] = []
@@ -460,10 +440,10 @@ class DesktopOverlayApp:
         self.root.after(180, window.withdraw)
 
     def _caption_width(self) -> int:
-        return min(1180, max(620, self.root.winfo_screenwidth() - 160))
+        return min(980, max(520, self.root.winfo_screenwidth() - 180))
 
     def _caption_height(self) -> int:
-        return 188
+        return 156
 
     def _launcher_geometry(self) -> str:
         if self._launcher_position is None:
@@ -489,7 +469,6 @@ class DesktopOverlayApp:
                 width,
                 height,
             )
-        self.caption_canvas.configure(width=width, height=height)
         self.caption.geometry(f"{width}x{height}+{x}+{y}")
 
     def _clamp_caption_position(self, x: int, y: int, width: int, height: int) -> tuple[int, int]:
@@ -503,154 +482,6 @@ class DesktopOverlayApp:
         return min(max(0, x), max_x), min(max(0, y), max_y)
 
 
-def _load_caption_position(path: Path) -> tuple[int, int] | None:
-    return _load_position(path)
-
-
-def _save_caption_position(path: Path, position: tuple[int, int]) -> None:
-    _save_position(path, position)
-
-
-def _create_outlined_text(
-    canvas: Any,
-    *,
-    x: int,
-    y: int,
-    text: str,
-    font: tuple[str, int] | tuple[str, int, str],
-    fill: str,
-    outline: str,
-    width: int,
-    outline_width: int = 2,
-    tags: tuple[str, ...] = (),
-) -> list[int]:
-    if not text:
-        return []
-    items: list[int] = []
-    offsets = {
-        (dx, dy)
-        for dx in range(-outline_width, outline_width + 1)
-        for dy in range(-outline_width, outline_width + 1)
-        if dx or dy
-    }
-    for dx, dy in offsets:
-        items.append(
-            canvas.create_text(
-                x + dx,
-                y + dy,
-                text=text,
-                anchor="nw",
-                justify="left",
-                width=width,
-                font=font,
-                fill=outline,
-                tags=tags,
-            )
-        )
-    items.append(
-        canvas.create_text(
-            x,
-            y,
-            text=text,
-            anchor="nw",
-            justify="left",
-            width=width,
-            font=font,
-            fill=fill,
-            tags=tags,
-        )
-    )
-    return items
-
-
-def _create_rounded_rectangle(
-    canvas: Any,
-    x1: int,
-    y1: int,
-    x2: int,
-    y2: int,
-    *,
-    radius: int,
-    fill: str,
-    outline: str,
-    tags: tuple[str, ...] = (),
-) -> list[int]:
-    radius = min(radius, int((x2 - x1) / 2), int((y2 - y1) / 2))
-    items = [
-        canvas.create_rectangle(
-            x1 + radius,
-            y1,
-            x2 - radius,
-            y2,
-            fill=fill,
-            outline=fill,
-            tags=tags,
-        ),
-        canvas.create_rectangle(
-            x1,
-            y1 + radius,
-            x2,
-            y2 - radius,
-            fill=fill,
-            outline=fill,
-            tags=tags,
-        ),
-        canvas.create_arc(
-            x1,
-            y1,
-            x1 + radius * 2,
-            y1 + radius * 2,
-            start=90,
-            extent=90,
-            fill=fill,
-            outline=fill,
-            tags=tags,
-        ),
-        canvas.create_arc(
-            x2 - radius * 2,
-            y1,
-            x2,
-            y1 + radius * 2,
-            start=0,
-            extent=90,
-            fill=fill,
-            outline=fill,
-            tags=tags,
-        ),
-        canvas.create_arc(
-            x2 - radius * 2,
-            y2 - radius * 2,
-            x2,
-            y2,
-            start=270,
-            extent=90,
-            fill=fill,
-            outline=fill,
-            tags=tags,
-        ),
-        canvas.create_arc(
-            x1,
-            y2 - radius * 2,
-            x1 + radius * 2,
-            y2,
-            start=180,
-            extent=90,
-            fill=fill,
-            outline=fill,
-            tags=tags,
-        ),
-    ]
-    items.extend(
-        [
-            canvas.create_line(x1 + radius, y1, x2 - radius, y1, fill=outline, tags=tags),
-            canvas.create_line(x2, y1 + radius, x2, y2 - radius, fill=outline, tags=tags),
-            canvas.create_line(x1 + radius, y2, x2 - radius, y2, fill=outline, tags=tags),
-            canvas.create_line(x1, y1 + radius, x1, y2 - radius, fill=outline, tags=tags),
-        ]
-    )
-    return items
-
-
 def _load_position(path: Path) -> tuple[int, int] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -661,6 +492,14 @@ def _load_position(path: Path) -> tuple[int, int] | None:
     if isinstance(x, int) and isinstance(y, int):
         return x, y
     return None
+
+
+def _load_caption_position(path: Path) -> tuple[int, int] | None:
+    return _load_position(path)
+
+
+def _save_caption_position(path: Path, position: tuple[int, int]) -> None:
+    _save_position(path, position)
 
 
 def _save_position(path: Path, position: tuple[int, int]) -> None:
@@ -704,8 +543,7 @@ def _asset_path(filename: str) -> Path:
     if getattr(sys, "frozen", False):
         base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
         return base / "simultaneous_interpreter" / "assets" / filename
-    else:
-        base = Path(__file__).resolve().parent
+    base = Path(__file__).resolve().parent
     return base / "assets" / filename
 
 
