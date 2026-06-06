@@ -127,12 +127,14 @@
 - 使用本地 Whisper 识别英文语音。
 - 使用 Google/MyMemory 免 key 在线翻译通道生成中文字幕。
 - 翻译网络异常时显示短提示并继续监听系统音频。
+- 使用智能语义断句缓冲合并 ASR 碎片，减少固定音频块导致的不必要断句。
 - 缺失 VAD 资源时自动降级，避免程序直接崩溃。
 
 实现思路：
 
 - 使用 PyAudioWPatch 的 WASAPI loopback 捕获系统输出音频。
 - 使用 faster-whisper 进行本地 ASR。
+- 默认使用 beam=3 / best_of=3 提升识别稳定性。
 - 使用 deep-translator 提供 Google/MyMemory 免 key 翻译容错。
 - 打包环境下优先加载内置 `models/faster-whisper-tiny.en` 模型。
 

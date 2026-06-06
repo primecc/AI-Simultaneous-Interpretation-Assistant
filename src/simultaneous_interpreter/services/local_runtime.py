@@ -107,8 +107,8 @@ def _transcribe(
         source,
         language=whisper_language(settings),
         vad_filter=vad_filter,
-        beam_size=1,
-        best_of=1,
+        beam_size=_bounded_positive_int(settings.asr_beam_size, fallback=3, maximum=6),
+        best_of=_bounded_positive_int(settings.asr_best_of, fallback=3, maximum=6),
         condition_on_previous_text=False,
         no_speech_threshold=0.65,
     )
@@ -117,6 +117,14 @@ def _transcribe(
 def _looks_like_missing_vad_asset(exc: Exception) -> bool:
     message = str(exc).lower()
     return "silero_vad" in message and ("no suchfile" in message or "doesn't exist" in message)
+
+
+def _bounded_positive_int(value: int, *, fallback: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return min(max(1, parsed), maximum)
 
 
 def _resolve_asr_model(settings: Settings) -> str:

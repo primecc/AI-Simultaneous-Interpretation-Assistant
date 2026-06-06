@@ -14,6 +14,10 @@ from simultaneous_interpreter.services.local_runtime import (
     transcribe_segments,
     translate_text,
 )
+from simultaneous_interpreter.services.semantic_segmenter import (
+    SemanticTextSegment,
+    SemanticTextSegmenter,
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,7 @@ class SystemAudioTranslator:
         self._thread: threading.Thread | None = None
         self._translation_cache: dict[str, str] = {}
         self._memory = RealtimeCorrectionMemory()
+        self._segmenter = SemanticTextSegmenter()
 
     @staticmethod
     def check_readiness(settings: Settings) -> TranslatorReadiness:
@@ -130,7 +135,11 @@ class SystemAudioTranslator:
                 audio = audio.reshape(-1, channels)
 
                 if not _has_enough_volume(audio):
-                    self._on_status("正在听取网页/系统音频", "未检测到明显人声，继续等待。")
+                    paused_segment = self._segmenter.flush_on_pause()
+                    if paused_segment is not None:
+                        self._translate_and_emit(translator, paused_segment)
+                    else:
+                        self._on_status("正在听取网页/系统音频", "未检测到明显人声，继续等待。")
                     continue
 
                 mono_audio = _resample_to_16khz(_to_mono_float32(audio), sample_rate)
@@ -138,13 +147,16 @@ class SystemAudioTranslator:
                 if not source_text.strip():
                     continue
 
-                self._on_status("正在翻译", source_text.strip())
-                translated_text = self._translate_or_report(translator, source_text)
-                if not translated_text:
+                semantic_segments = self._segmenter.push(source_text)
+                if not semantic_segments:
+                    self._on_status(
+                        "正在智能断句",
+                        self._segmenter.preview or source_text.strip(),
+                    )
                     continue
-                result = self._memory.upsert(source_text.strip(), translated_text.strip())
-                if result is not None:
-                    self._on_result(result)
+
+                for segment in semantic_segments:
+                    self._translate_and_emit(translator, segment)
         except Exception as exc:
             self._on_status("后台翻译已停止", str(exc))
         finally:
@@ -173,6 +185,22 @@ class SystemAudioTranslator:
             oldest_key = next(iter(self._translation_cache))
             self._translation_cache.pop(oldest_key, None)
         return polished
+
+    def _translate_and_emit(
+        self,
+        translator: object,
+        segment: SemanticTextSegment,
+    ) -> None:
+        source_text = segment.text.strip()
+        if not source_text:
+            return
+        self._on_status("正在翻译完整语义句", source_text)
+        translated_text = self._translate_or_report(translator, source_text)
+        if not translated_text:
+            return
+        result = self._memory.upsert(source_text, translated_text.strip())
+        if result is not None:
+            self._on_result(result)
 
     def _translate_or_report(self, translator: object, source_text: str) -> str | None:
         try:

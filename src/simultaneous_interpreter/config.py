@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     source_language: str = "en"
     target_language: str = "zh"
     audio_chunk_seconds: float = 2.2
+    asr_beam_size: int = 3
+    asr_best_of: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

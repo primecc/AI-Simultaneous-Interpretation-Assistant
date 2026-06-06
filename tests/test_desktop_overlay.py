@@ -19,10 +19,21 @@ class FakeWhisperModel:
         return [SimpleNamespace(text="Hello from the talk.", start=1.0, end=3.5)], object()
 
 
+class FragmentedWhisperModel:
+    def transcribe(self, *_args: object, **_kwargs: object) -> tuple[list[object], object]:
+        return [
+            SimpleNamespace(text="The key is not only", start=1.0, end=2.2),
+            SimpleNamespace(text="speed but also correction.", start=2.2, end=4.0),
+        ], object()
+
+
 class FakeTranslator:
     def translate(self, text: str) -> str:
-        assert text == "Hello from the talk."
-        return "来自演讲的你好。"
+        translations = {
+            "Hello from the talk.": "来自演讲的你好。",
+            "The key is not only speed but also correction.": "关键不只是速度，还包括纠错能力。",
+        }
+        return translations[text]
 
 
 class FakeWindow:
@@ -65,6 +76,31 @@ def test_media_pipeline_streams_real_interpreter_segments(monkeypatch) -> None:
     assert segment.translated_text == "来自演讲的你好。"
     assert segment.start_ms == 1000
     assert segment.end_ms == 3500
+
+
+def test_media_pipeline_merges_fragments_before_translation(monkeypatch) -> None:
+    monkeypatch.setattr(media_interpreter, "missing_modules", lambda _modules: [])
+    monkeypatch.setattr(
+        media_interpreter,
+        "create_whisper_model",
+        lambda _settings: FragmentedWhisperModel(),
+    )
+    monkeypatch.setattr(
+        media_interpreter,
+        "create_text_translator",
+        lambda _settings: FakeTranslator(),
+    )
+
+    pipeline = MediaInterpretationPipeline(SubtitleStore(), Settings())
+
+    updates = list(pipeline.stream(media_id="media-1", media_path=Path("sample.mp4")))
+
+    assert len(updates) == 1
+    segment = updates[0].segment
+    assert segment.source_text == "The key is not only speed but also correction."
+    assert segment.translated_text == "关键不只是速度，还包括纠错能力。"
+    assert segment.start_ms == 1000
+    assert segment.end_ms == 4000
 
 
 def test_caption_position_round_trips(tmp_path) -> None:

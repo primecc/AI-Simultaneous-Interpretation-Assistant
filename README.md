@@ -7,6 +7,7 @@
 - Windows 桌面高清圆角悬浮图标，一键开启/关闭字幕
 - 通过 WASAPI loopback 读取系统播放音频，不需要浏览器扩展
 - 本地 Whisper 语音识别，不需要填写 API key
+- 智能语义断句：先合并 ASR 碎片，再按完整语义句翻译，减少不必要的断句
 - 低延迟免 key 中文翻译，默认 2.2 秒音频块
 - 翻译网络容错：Google 免费通道失败后自动尝试 MyMemory，单次网络失败不会停止后台监听
 - 口语化中文润色，减少直译感
@@ -40,6 +41,8 @@ AI-Simultaneous-Interpreter.exe
 ## 最近改进
 
 - 字幕浮层恢复为最初版深色半透明 Label 字幕条，并使用鼠标状态轮询修复不能拖动的问题。
+- 新增智能语义断句缓冲，后台同传和本地媒体导入都会等待完整语义句再翻译。
+- ASR 默认从 beam=1 提升到 beam=3 / best_of=3，提高英文识别稳定性。
 - 翻译服务增加免 key 备用通道和失败降级提示，避免 Google 免费接口 SSL 断开时直接停止后台同传。
 - 实时翻译从 4 秒块降到默认 2.2 秒块，并增加翻译缓存，降低重复翻译等待。
 - 增加口语化中文润色，将生硬直译改成更自然的中文表达。
@@ -81,6 +84,8 @@ LOCAL_ASR_MODEL=tiny.en
 SOURCE_LANGUAGE=en
 TARGET_LANGUAGE=zh
 AUDIO_CHUNK_SECONDS=2.2
+ASR_BEAM_SIZE=3
+ASR_BEST_OF=3
 ```
 
 ## Windows EXE 打包
